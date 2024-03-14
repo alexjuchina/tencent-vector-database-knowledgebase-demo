@@ -89,18 +89,40 @@ def generate_answer_from_zhipu(msg):
         answer += chunk.choices[0].delta.content
 
     return answer
-
-def send_to_dingding(data):
+    
+# send dingdig message 
+def send_to_dingding(dingding_msg):
     url = f"https://oapi.dingtalk.com/robot/send?access_token={access_token}"
     headers = {'Content-Type': 'application/json;charset=utf-8'}
+    data = {
+        "msgtype": "markdown",
+        "markdown": {
+            "title":"AI Answer",
+            "text": dingding_msg
+            }
+    }
+    print(dingding_msg)
     response = requests.post(url, headers=headers, data=json.dumps(data))
-    print(response.json())
+    if response.status_code == "0":
+        print("\n钉钉消息发送成功：\n", dingding_msg)
+    else:
+        print("\n钉钉消息发送失败并提醒用户：\n", response.json())
+        dingding_msg = str(response.json())
+        data = {
+        "msgtype": "markdown",
+        "markdown": {
+            "title":"AI Answer",
+            "text": dingding_msg
+            }
+        }
+        response = requests.post(url, headers=headers, data=json.dumps(data))
 
 @app.route('/dingding', methods=['POST'])
 def dingding():
    data = request.json
    question = data.get('text', {}).get('content')
-   print("question:", question)
+   print("\n钉钉问题:\n", question)
+
    knowleges = searchKnowlege(question)
    content = json.dumps({
          "请回答问题：": question,
@@ -108,24 +130,14 @@ def dingding():
       },ensure_ascii=False)
    answer_baichuan=generate_answer_from_baichuan(content)
    answer_zhipu=generate_answer_from_zhipu(content)
-   data = {
-      "msgtype": "markdown",
-      "markdown": {
-         "title":f"AI Answer",
-         "text": f"## 百川 AI 回答：\n {answer_baichuan} \n ------------------ \n  ## 智谱 AI 回答：\n {answer_zhipu}"
-         }   
-   }
-   print("\n\n===================== AI 回答：=====================\n\n",knowleges)
-   print(f"## 百川 AI 回答：\n {answer_baichuan} \n\n  ## 智谱 AI 回答：\n {answer_zhipu}")
-   send_to_dingding(data)
-   # data_zhipu = {
-   #    "msgtype": "markdown",
-   #    "markdown": {
-   #       "title":f"AI Answer",
-   #       "text": f"智谱 AI 回答：\n {answer_zhipu}"
-   #       }   
-   # }
-   # send_to_dingding(data_zhipu)
+    # 绕开钉钉URL阻断
+   if 'gitlab.com' in answer_zhipu:
+        answer_zhipu = answer_zhipu.replace('gitlab.com', 'example.com')
+   if 'gitlab.com' in answer_zhipu:
+        answer_baichuan = answer_baichuan.replace('gitlab.com', 'example.com')
+   dingding_msg = f"## 百川 AI 回答：\n {answer_baichuan} \n ------------------ \n  ## 智谱 AI 回答：\n {answer_zhipu}"
+   print("\n\n===================== AI 回答：=====================\n\n")
+   send_to_dingding(dingding_msg)
    return jsonify({"errcode": 0, "errmsg": "success"})
 
 if __name__ == '__main__':
